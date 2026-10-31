@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Court admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head><body>
+<header><h1>Admin</h1><p>Check each payment screenshot, then confirm the slot.</p></header>
+<main>
+<section id="login"><label for="pw">Admin password</label><input id="pw" type="password" autocomplete="current-password">
+<div class="msg err" id="err" hidden role="alert"></div><button class="btn" id="go">Sign in</button></section>
+<section id="panel" hidden><div class="tabs" id="tabs"></div><div id="list"></div></section>
+</main>
+<script src="config.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let pw=sessionStorage.getItem('pw')||'',all=[],tab='Pending';
+const lbl=h=>(h%12||12)+':00 '+(h<12?'AM':'PM');
+const post=b=>fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({password:pw,...b})}).then(r=>r.json());
+async function load(){
+  const r=await post({action:'list'});
+  if(!r.ok){sessionStorage.removeItem('pw');$('login').hidden=false;$('panel').hidden=true;const e=$('err');e.textContent=r.error;e.hidden=false;return}
+  all=r.bookings;$('login').hidden=true;$('panel').hidden=false;draw();
+}
+function draw(){
+  $('tabs').innerHTML='';
+  ['Pending','Confirmed','Rejected'].forEach(t=>{const b=document.createElement('button');b.className='day'+(t===tab?' sel':'');
+    b.textContent=t+' ('+all.filter(x=>x.Status===t).length+')';b.onclick=()=>{tab=t;draw()};$('tabs').append(b)});
+  const rows=all.filter(x=>x.Status===tab);
+  $('list').innerHTML=rows.length?'':'<p class="hint">Nothing here.</p>';
+  rows.forEach(x=>{
+    const d=document.createElement('div');d.className='bk';
+    const hrs=x.Hours.split(',').map(h=>lbl(+h)).join(', ');
+    d.innerHTML=`<div class="row"><b>${esc(x.Name)} · ${esc(x['Booking ID'])}</b><span class="tag ${x.Status}">${x.Status}</span></div>
+      <div><b>${x.Date}</b> — ${hrs}</div>
+      <div>${esc(x.Phone)} ${x.Email?'· '+esc(x.Email):''}</div>
+      <div>${esc(x['Payment Option'])}: <b>₱${x['Amount To Pay']}</b> of ₱${x.Total} (balance ₱${x['Balance Due']})</div>
+      <div class="acts"><a href="${x.Proof}" target="_blank" rel="noopener" class="btn sm" style="text-decoration:none;background:var(--court);color:#fff">View screenshot</a></div>`;
+    const a=d.querySelector('.acts');
+    [['Confirmed','Confirm','ok'],['Rejected','Reject','no'],['Pending','Back to pending','']].filter(s=>s[0]!==x.Status).forEach(([st,txt,c])=>{
+      const b=document.createElement('button');b.className='btn sm '+c;b.textContent=txt;
+      b.onclick=async()=>{b.disabled=true;const r=await post({action:'update',id:x['Booking ID'],status:st});r.ok?load():(alert(r.error),b.disabled=false)};a.append(b)});
+    $('list').append(d)});
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('go').onclick=()=>{pw=$('pw').value;sessionStorage.setItem('pw',pw);load()};
+if(pw)load();
+</script></body></html>
