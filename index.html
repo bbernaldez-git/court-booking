@@ -7,9 +7,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head><body>
-<header><h1 id="court">Book the court</h1><p>Pick a day, tap your hours, pay 50% or in full, and upload your receipt.</p></header>
+<header class="hero"><h1 id="court">Book the court</h1><p>Pick a day, tap your hours, pay 50% or in full, and upload your receipt.</p></header>
 <main>
 <div id="app">
+<section><h2>The court</h2>
+<div class="gallery">
+<button class="ph" data-src="images/court-1.jpg" aria-label="View photo 1 larger"><img src="images/court-1.jpg" alt="Covered basketball court with green surface and floodlights at night" loading="lazy" width="1280" height="960"></button>
+<button class="ph" data-src="images/court-2.jpg" aria-label="View photo 2 larger"><img src="images/court-2.jpg" alt="Court view showing the Ebenezer backboard and painted key" loading="lazy" width="1280" height="960"></button>
+</div><p class="hint">Covered court with night lighting. Tap a photo to enlarge.</p></section>
 <section><h2>1. Pick a day</h2><div class="days" id="days"></div></section>
 <section><h2>2. Pick your hours</h2><div class="slots" id="slots">Loading…</div><p class="hint" id="rate"></p></section>
 <section><h2>3. Your details</h2>
@@ -27,6 +32,7 @@
 <div class="msg err" id="err" hidden role="alert"></div>
 <button class="btn" id="submit">Submit booking</button></section>
 </div>
+<dialog id="lb"><button class="x" aria-label="Close">×</button><img id="lbimg" alt="Enlarged court photo"></dialog>
 <section class="done" id="done" hidden><h2>Booking received</h2><p>Your reference is <b id="ref"></b>. Your slot is held while we check your payment. You'll be marked <b>Confirmed</b> once the admin verifies it.</p><p class="hint">Screenshot this reference.</p><button class="btn sm" onclick="location.reload()">Book another</button></section>
 </main>
 <script src="config.js"></script>
@@ -99,5 +105,7 @@ $('submit').onclick=async()=>{
     $('app').hidden=true;$('done').hidden=false;$('ref').textContent=r.id;scrollTo(0,0);
   }catch(e){fail(e.message);b.disabled=false;b.textContent='Submit booking';if(/booked/.test(e.message))pickDay(date)}
 };
+document.querySelectorAll('.ph').forEach(b=>b.onclick=()=>{$('lbimg').src=b.dataset.src;$('lb').showModal()});
+$('lb').onclick=()=>$('lb').close();
 init().catch(()=>fail('Could not reach the booking server.'));
 </script></body></html>
