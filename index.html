@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d4e89">
 <title>Book the court</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
@@ -13,7 +14,7 @@
 <section><h2>2. Pick your hours</h2><div class="slots" id="slots">Loading…</div><p class="hint" id="rate"></p></section>
 <section><h2>3. Your details</h2>
 <label for="name">Full name</label><input id="name" type="text" autocomplete="name">
-<label for="phone">Mobile number</label><input id="phone" type="tel" autocomplete="tel">
+<label for="phone">Mobile number</label><input id="phone" type="tel" inputmode="tel" autocomplete="tel">
 <label for="email">Email (optional, for confirmation)</label><input id="email" type="email" autocomplete="email"></section>
 <section><h2>4. Pay and upload proof</h2>
 <label class="opt"><input type="radio" name="pay" value="half" checked> 50% downpayment <span id="p-half">₱0</span></label>
@@ -36,7 +37,7 @@ const peso=n=>'₱'+n.toLocaleString();
 const lbl=h=>(h%12||12)+':00 '+(h<12?'AM':'PM');
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const api=(q)=>fetch(API_URL+'?'+new URLSearchParams(q)).then(r=>r.json());
-function fail(m){const e=$('err');e.textContent=m;e.hidden=!m}
+function fail(m){const e=$('err');e.textContent=m;e.hidden=!m;if(m)e.scrollIntoView({behavior:'smooth',block:'center'})}
 
 async function init(){
   cfg=(await api({action:'config'})).config;
