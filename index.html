@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Book the court</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head><body>
+<header><h1 id="court">Book the court</h1><p>Pick a day, tap your hours, pay 50% or in full, and upload your receipt.</p></header>
+<main>
+<div id="app">
+<section><h2>1. Pick a day</h2><div class="days" id="days"></div></section>
+<section><h2>2. Pick your hours</h2><div class="slots" id="slots">Loading…</div><p class="hint" id="rate"></p></section>
+<section><h2>3. Your details</h2>
+<label for="name">Full name</label><input id="name" type="text" autocomplete="name">
+<label for="phone">Mobile number</label><input id="phone" type="tel" autocomplete="tel">
+<label for="email">Email (optional, for confirmation)</label><input id="email" type="email" autocomplete="email"></section>
+<section><h2>4. Pay and upload proof</h2>
+<label class="opt"><input type="radio" name="pay" value="half" checked> 50% downpayment <span id="p-half">₱0</span></label>
+<label class="opt"><input type="radio" name="pay" value="full"> Full payment <span id="p-full">₱0</span></label>
+<div class="pay" id="payinfo"></div>
+<label for="proof">Screenshot of your payment</label><input id="proof" type="file" accept="image/*">
+<img id="preview" class="preview" alt="Payment screenshot preview" hidden>
+<div class="sum big"><span>Send now</span><span id="due">₱0</span></div>
+<div class="sum hint"><span>Balance due at the court</span><span id="bal">₱0</span></div>
+<div class="msg err" id="err" hidden role="alert"></div>
+<button class="btn" id="submit">Submit booking</button></section>
+</div>
+<section class="done" id="done" hidden><h2>Booking received</h2><p>Your reference is <b id="ref"></b>. Your slot is held while we check your payment. You'll be marked <b>Confirmed</b> once the admin verifies it.</p><p class="hint">Screenshot this reference.</p><button class="btn sm" onclick="location.reload()">Book another</button></section>
+</main>
+<script src="config.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let cfg, date, sel=new Set(), booked=[], proofData=null;
+const peso=n=>'₱'+n.toLocaleString();
+const lbl=h=>(h%12||12)+':00 '+(h<12?'AM':'PM');
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const api=(q)=>fetch(API_URL+'?'+new URLSearchParams(q)).then(r=>r.json());
+function fail(m){const e=$('err');e.textContent=m;e.hidden=!m}
+
+async function init(){
+  cfg=(await api({action:'config'})).config;
+  $('court').textContent=cfg.court;$('payinfo').textContent=cfg.pay;
+  $('rate').textContent=peso(cfg.rate)+' per hour. Pending bookings also hold their slot.';
+  const box=$('days');
+  for(let i=0;i<cfg.days;i++){const d=new Date();d.setDate(d.getDate()+i);
+    const b=document.createElement('button');b.className='day';b.dataset.d=iso(d);
+    b.innerHTML='<small>'+d.toLocaleDateString('en',{weekday:'short'})+'</small><b>'+d.getDate()+'</b><small>'+d.toLocaleDateString('en',{month:'short'})+'</small>';
+    b.onclick=()=>pickDay(b.dataset.d);box.append(b)}
+  pickDay(iso(new Date()));
+}
+async function pickDay(d){
+  date=d;sel.clear();
+  document.querySelectorAll('.day').forEach(b=>b.classList.toggle('sel',b.dataset.d===d));
+  $('slots').textContent='Loading…';
+  try{booked=(await api({action:'slots',date:d})).booked||[]}catch(e){fail('Could not load slots. Refresh and try again.');return}
+  drawSlots();
+}
+function drawSlots(){
+  const box=$('slots');box.innerHTML='';
+  const now=new Date(),today=date===iso(now);
+  for(let h=cfg.open;h<cfg.close;h++){
+    const b=document.createElement('button'),taken=booked.includes(h),past=today&&h<=now.getHours();
+    b.className='slot'+(taken?' taken':'')+(sel.has(h)?' sel':'');
+    b.textContent=lbl(h)+(taken?' (booked)':'');b.disabled=taken||past;
+    b.onclick=()=>{sel.has(h)?sel.delete(h):sel.add(h);drawSlots();money()};
+    box.append(b)}
+  money();
+}
+function money(){
+  const t=sel.size*cfg.rate,half=t/2,full=document.querySelector('[name=pay]:checked').value==='full';
+  $('p-half').textContent=peso(half);$('p-full').textContent=peso(t);
+  $('due').textContent=peso(full?t:half);$('bal').textContent=peso(full?0:half);
+}
+document.querySelectorAll('[name=pay]').forEach(r=>r.onchange=money);
+
+$('proof').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const img=new Image();img.onload=()=>{
+    const s=Math.min(1,1400/Math.max(img.width,img.height)),c=document.createElement('canvas');
+    c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    const url=c.toDataURL('image/jpeg',.82);proofData=url.split(',')[1];
+    $('preview').src=url;$('preview').hidden=false};
+  img.onerror=()=>fail('That file is not a readable image.');
+  img.src=URL.createObjectURL(f);
+};
+$('submit').onclick=async()=>{
+  fail('');
+  if(!sel.size)return fail('Pick at least one hour.');
+  if(!$('name').value.trim()||!$('phone').value.trim())return fail('Enter your name and mobile number.');
+  if(!proofData)return fail('Upload your payment screenshot.');
+  const b=$('submit');b.disabled=true;b.textContent='Submitting…';
+  try{
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({
+      action:'book',date,hours:[...sel],name:$('name').value,phone:$('phone').value,email:$('email').value,
+      payment:document.querySelector('[name=pay]:checked').value,proof:proofData,proofType:'image/jpeg'})}).then(r=>r.json());
+    if(!r.ok)throw new Error(r.error);
+    $('app').hidden=true;$('done').hidden=false;$('ref').textContent=r.id;scrollTo(0,0);
+  }catch(e){fail(e.message);b.disabled=false;b.textContent='Submit booking';if(/booked/.test(e.message))pickDay(date)}
+};
+init().catch(()=>fail('Could not reach the booking server.'));
+</script></body></html>
