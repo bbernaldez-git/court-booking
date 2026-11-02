@@ -1,49 +1,101 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1d4e89">
-<meta name="robots" content="noindex"><title>Court admin</title>
+<meta name="theme-color" content="#1d4e89"><meta name="robots" content="noindex"><title>Court admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head><body>
-<header><h1>Admin</h1><p>Check each payment screenshot, then confirm the slot.</p></header>
+<header><h1>Admin</h1><p>See what is booked, verify payments, handle cancellations.</p></header>
 <main>
 <section id="login"><label for="pw">Admin password</label><input id="pw" type="password" autocomplete="current-password">
 <div class="msg err" id="err" hidden role="alert"></div><button class="btn" id="go">Sign in</button></section>
-<section id="panel" hidden><div class="tabs" id="tabs"></div><div id="list"></div></section>
+<section id="panel" hidden>
+<div class="tabs" id="views"></div>
+<div id="cal"><div class="calnav"><button class="day" id="prev" aria-label="Previous month">‹</button><h2 id="mt"></h2><button class="day" id="next" aria-label="Next month">›</button></div>
+<div class="grid dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+<div class="grid" id="grid"></div>
+<p class="hint"><i class="dot c"></i>Confirmed <i class="dot p"></i>Pending <i class="dot x"></i>Cancel request</p>
+<div id="dayview"></div></div>
+<div id="lst" hidden><div class="tabs" id="tabs"></div><div id="list"></div></div>
+</section>
 </main>
 <script src="config.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let pw=sessionStorage.getItem('pw')||'',all=[],tab='Pending';
+const HOLD=['Pending','Confirmed','Cancel Requested'];
+const STATUS=['Pending','Cancel Requested','Confirmed','Rejected','Cancelled'];
+let pw=sessionStorage.getItem('pw')||'',all=[],tab='Pending',view='cal',cfg,month=new Date(),selDay=null;
+month.setDate(1);
 const lbl=h=>(h%12||12)+':00 '+(h<12?'AM':'PM');
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const post=b=>fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({password:pw,...b})}).then(r=>r.json());
+
 async function load(){
   const r=await post({action:'list'});
   if(!r.ok){sessionStorage.removeItem('pw');$('login').hidden=false;$('panel').hidden=true;const e=$('err');e.textContent=r.error;e.hidden=false;return}
-  all=r.bookings;$('login').hidden=true;$('panel').hidden=false;draw();
+  if(!cfg)cfg=(await fetch(API_URL+'?action=config').then(r=>r.json())).config;
+  all=r.bookings;$('login').hidden=true;$('panel').hidden=false;
+  if(!tab||!all.some(x=>x.Status===tab)&&all.some(x=>x.Status==='Cancel Requested'))tab='Cancel Requested';
+  draw();
 }
 function draw(){
+  $('views').innerHTML='';
+  [['cal','Calendar'],['list','List']].forEach(([v,t])=>{const b=document.createElement('button');b.className='day'+(v===view?' sel':'');
+    const n=v==='list'?all.filter(x=>['Pending','Cancel Requested'].includes(x.Status)).length:0;
+    b.textContent=t+(n?' ('+n+' to review)':'');b.onclick=()=>{view=v;draw()};$('views').append(b)});
+  $('cal').hidden=view!=='cal';$('lst').hidden=view!=='list';
+  view==='cal'?drawCal():drawList();
+}
+function occ(){const m={};all.filter(x=>HOLD.includes(x.Status)).forEach(x=>x.Hours.split(',').forEach(h=>{(m[x.Date]=m[x.Date]||{})[+h]=x}));return m}
+function drawCal(){
+  const o=occ(),y=month.getFullYear(),mo=month.getMonth(),total=cfg.close-cfg.open,today=iso(new Date());
+  $('mt').textContent=month.toLocaleDateString('en',{month:'long',year:'numeric'});
+  const g=$('grid');g.innerHTML='';
+  for(let i=0;i<month.getDay();i++)g.append(document.createElement('span'));
+  for(let d=1;d<=new Date(y,mo+1,0).getDate();d++){
+    const k=iso(new Date(y,mo,d)),hs=o[k]||{},bks=Object.values(hs),n=bks.length,st=s=>bks.some(x=>x.Status===s);
+    const b=document.createElement('button');b.className='cell'+(k===selDay?' sel':'')+(k===today?' today':'');
+    b.setAttribute('aria-label',k+', '+n+' of '+total+' hours booked');
+    b.innerHTML='<b>'+d+'</b><small>'+(n?n+'/'+total+'h':'free')+'</small><span class="bar"><i style="width:'+(n/total*100)+'%"></i></span><span class="dots">'+
+      (st('Confirmed')?'<i class="dot c"></i>':'')+(st('Pending')?'<i class="dot p"></i>':'')+(st('Cancel Requested')?'<i class="dot x"></i>':'')+'</span>';
+    b.onclick=()=>{selDay=k;drawCal();$('dayview').scrollIntoView({behavior:'smooth',block:'nearest'})};g.append(b)}
+  const dv=$('dayview');dv.innerHTML='';
+  if(!selDay)return;
+  const hs=o[selDay]||{};
+  dv.innerHTML='<h2>'+new Date(selDay+'T00:00').toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'})+'</h2>';
+  for(let h=cfg.open;h<cfg.close;h++){
+    const x=hs[h],r=document.createElement(x?'button':'div');r.className='hr'+(x?' b '+x.Status.replace(' ',''):'');
+    r.innerHTML='<span>'+lbl(h)+'</span>'+(x?'<span><b>'+esc(x.Name)+'</b> · '+esc(x.Phone)+'</span><span class="tag '+x.Status.replace(' ','')+'">'+x.Status+'</span>':'<span class="hint">Open</span>');
+    if(x)r.onclick=()=>{view='list';tab=x.Status;draw()};
+    dv.append(r)}
+}
+$('prev').onclick=()=>{month.setMonth(month.getMonth()-1);drawCal()};
+$('next').onclick=()=>{month.setMonth(month.getMonth()+1);drawCal()};
+
+function drawList(){
   $('tabs').innerHTML='';
-  ['Pending','Confirmed','Rejected'].forEach(t=>{const b=document.createElement('button');b.className='day'+(t===tab?' sel':'');
-    b.textContent=t+' ('+all.filter(x=>x.Status===t).length+')';b.onclick=()=>{tab=t;draw()};$('tabs').append(b)});
+  STATUS.forEach(t=>{const b=document.createElement('button');b.className='day'+(t===tab?' sel':'');
+    b.textContent=t+' ('+all.filter(x=>x.Status===t).length+')';b.onclick=()=>{tab=t;drawList()};$('tabs').append(b)});
   const rows=all.filter(x=>x.Status===tab);
   $('list').innerHTML=rows.length?'':'<p class="hint">Nothing here.</p>';
   rows.forEach(x=>{
     const d=document.createElement('div');d.className='bk';
     const hrs=x.Hours.split(',').map(h=>lbl(+h)).join(', ');
-    d.innerHTML=`<div class="row"><b>${esc(x.Name)} · ${esc(x['Booking ID'])}</b><span class="tag ${x.Status}">${x.Status}</span></div>
+    d.innerHTML=`<div class="row"><b>${esc(x.Name)} · ${esc(x['Booking ID'])}</b><span class="tag ${x.Status.replace(' ','')}">${x.Status}</span></div>
       <div><b>${x.Date}</b> — ${hrs}</div>
       <div>${esc(x.Phone)} ${x.Email?'· '+esc(x.Email):''}</div>
       <div>${esc(x['Payment Option'])}: <b>₱${x['Amount To Pay']}</b> of ₱${x.Total} (balance ₱${x['Balance Due']})</div>
-      <div class="acts"><a href="${x.Proof}" target="_blank" rel="noopener" class="btn sm" style="text-decoration:none;background:var(--court);color:#fff">View screenshot</a></div>`;
-    const a=d.querySelector('.acts');
-    [['Confirmed','Confirm','ok'],['Rejected','Reject','no'],['Pending','Back to pending','']].filter(s=>s[0]!==x.Status).forEach(([st,txt,c])=>{
-      const b=document.createElement('button');b.className='btn sm '+c;b.textContent=txt;
-      b.onclick=async()=>{b.disabled=true;const r=await post({action:'update',id:x['Booking ID'],status:st});r.ok?load():(alert(r.error),b.disabled=false)};a.append(b)});
+      <div class="acts"><a href="${x.Proof}" target="_blank" rel="noopener" class="btn sm" style="text-decoration:none;background:var(--court);color:#fff;display:inline-flex;align-items:center">View screenshot</a></div>`;
+    const acts={Pending:[['Confirmed','Confirm','ok'],['Rejected','Reject','no']],
+      'Cancel Requested':[['Cancelled','Approve cancellation','no'],[x['Prev Status']||'Confirmed','Decline (keep booking)','']],
+      Confirmed:[['Cancelled','Cancel booking','no'],['Pending','Back to pending','']],
+      Rejected:[['Pending','Restore','']],Cancelled:[['Confirmed','Restore','']]}[x.Status]||[];
+    acts.forEach(([st,txt,c])=>{const b=document.createElement('button');b.className='btn sm '+c;b.textContent=txt;
+      b.onclick=async()=>{if(txt.startsWith('Approve')&&!confirm('Cancel this booking and free the slot? Refund the customer separately.'))return;
+        b.disabled=true;const r=await post({action:'update',id:x['Booking ID'],status:st});r.ok?load():(alert(r.error),b.disabled=false)};d.querySelector('.acts').append(b)});
     $('list').append(d)});
 }
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 $('go').onclick=()=>{pw=$('pw').value;sessionStorage.setItem('pw',pw);load()};
 if(pw)load();
 </script></body></html>

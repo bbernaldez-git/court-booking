@@ -34,6 +34,11 @@
 </div>
 <dialog id="lb"><button class="x" aria-label="Close">×</button><img id="lbimg" alt="Enlarged court photo"></dialog>
 <section class="done" id="done" hidden><h2>Booking received</h2><p>Your reference is <b id="ref"></b>. Your slot is held while we check your payment. You'll be marked <b>Confirmed</b> once the admin verifies it.</p><p class="hint">Screenshot this reference.</p><button class="btn sm" onclick="location.reload()">Book another</button></section>
+<section id="cancel"><h2>Need to cancel?</h2><p class="hint">Enter your booking reference and the phone number you booked with. The admin will review your request.</p>
+<label for="cid">Booking reference</label><input id="cid" type="text" placeholder="BK261105-AB12" autocapitalize="characters">
+<label for="cph">Mobile number</label><input id="cph" type="tel" inputmode="tel">
+<div class="msg err" id="cmsg" hidden role="alert"></div>
+<button class="btn" id="cbtn">Request cancellation</button></section>
 </main>
 <script src="config.js"></script>
 <script>
@@ -105,6 +110,11 @@ $('submit').onclick=async()=>{
     $('app').hidden=true;$('done').hidden=false;$('ref').textContent=r.id;scrollTo(0,0);
   }catch(e){fail(e.message);b.disabled=false;b.textContent='Submit booking';if(/booked/.test(e.message))pickDay(date)}
 };
+$('cbtn').onclick=async()=>{const m=$('cmsg'),b=$('cbtn');m.hidden=true;b.disabled=true;
+  try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'cancel',id:$('cid').value,phone:$('cph').value})}).then(r=>r.json());
+    if(!r.ok)throw new Error(r.error);m.className='msg';m.style.background='#e3f4ea';m.style.color='#14532d';m.textContent='Cancellation requested. The admin will confirm shortly. Your slot stays held until then.'}
+  catch(e){m.className='msg err';m.style.background='';m.style.color='';m.textContent=e.message}
+  m.hidden=false;b.disabled=false};
 document.querySelectorAll('.ph').forEach(b=>b.onclick=()=>{$('lbimg').src=b.dataset.src;$('lb').showModal()});
 $('lb').onclick=()=>$('lb').close();
 init().catch(()=>fail('Could not reach the booking server.'));

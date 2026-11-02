@@ -81,3 +81,19 @@ dialog::backdrop{background:rgba(0,0,0,.85)}
 dialog img{max-width:96vw;max-height:88vh;border-radius:8px;display:block}
 dialog .x{position:absolute;top:-44px;right:0;width:44px;height:44px;border:0;border-radius:50%;background:#fff;color:#101820;font-size:1.6rem;cursor:pointer}
 @media(prefers-reduced-motion:reduce){.ph img{transition:none}}
+
+/* ---- Admin calendar ---- */
+.calnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.calnav .day{flex:0 0 48px;min-height:48px;font-size:1.6rem}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.dow{text-align:center;font-weight:600;color:var(--mute);font-size:.8rem;margin-bottom:4px}
+.cell{font:inherit;color:inherit;background:var(--mist);border:2px solid transparent;border-radius:8px;padding:4px 2px;min-height:62px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;touch-action:manipulation}
+.cell b{font:700 1.1rem 'Barlow Condensed'}.cell small{font-size:.65rem;color:var(--mute)}
+.cell.sel{border-color:var(--hoop)}.cell.today b{color:var(--hoop)}
+.bar{width:80%;height:4px;background:var(--rule);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--court)}
+.dots{display:flex;gap:2px;min-height:8px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.dots .dot{margin:0}
+.dot.c{background:var(--ok)}.dot.p{background:var(--hoop)}.dot.x{background:var(--bad)}
+#dayview{margin-top:14px}#dayview h2{margin-bottom:8px}
+.hr{display:flex;gap:10px;align-items:center;width:100%;padding:10px;margin-bottom:4px;border-radius:8px;background:var(--mist);font:inherit;color:inherit;border:0;text-align:left;min-height:46px;flex-wrap:wrap}
+.hr>span:first-child{flex:0 0 80px;font-weight:600}.hr .tag{margin-left:auto}
+.hr.b{cursor:pointer;border-left:6px solid var(--ok)}.hr.Pending{border-color:var(--hoop)}.hr.CancelRequested{border-color:var(--bad)}
+.tag.CancelRequested{background:var(--bad);color:#fff}.tag.Cancelled{background:var(--mute);color:#fff}
+@media(max-width:520px){.cell{min-height:56px}.cell small{font-size:.58rem}}

@@ -9,8 +9,8 @@ const CONFIG = {
   DAYS_AHEAD: 30,
   PAY: 'GCash: 0917 000 0000 (Juan D.)\nMaya: 0918 000 0000 (Juan D.)'
 };
-const HEAD = ['Booking ID','Created','Date','Hours','Name','Phone','Email','Total','Payment Option','Amount To Pay','Balance Due','Proof','Status','Updated'];
-const HOLD = ['Pending','Confirmed']; // statuses that block a slot
+const HEAD = ['Booking ID','Created','Date','Hours','Name','Phone','Email','Total','Payment Option','Amount To Pay','Balance Due','Proof','Status','Updated','Prev Status'];
+const HOLD = ['Pending','Confirmed','Cancel Requested']; // statuses that block a slot
 
 function setup() { sheet_(); folder_(); }
 
@@ -25,6 +25,7 @@ function doPost(e) {
   try {
     const d = JSON.parse(e.postData.contents);
     if (d.action === 'book') return out_(book_(d));
+    if (d.action === 'cancel') return out_(cancel_(d));
     if (!isAdmin_(d.password)) return out_({ ok: false, error: 'Wrong password' });
     if (d.action === 'list') return out_({ ok: true, bookings: list_() });
     if (d.action === 'update') return out_(update_(d.id, d.status));
@@ -61,15 +62,21 @@ function book_(d) {
       clean_(d.email), total, d.payment === 'half' ? '50% downpayment' : 'Full payment', due, total - due, url, 'Pending', ''];
     const r = sh.getLastRow() + 1;
     sh.getRange(r, 1, 1, row.length).setNumberFormat('@').setValues([row.map(String)]);
+    notify_('NEW BOOKING ' + id + '\n' + d.date + ' ' + hours.map(label_).join(', ') + '\n' + name + ' ' + phone +
+      '\nPHP ' + due + ' of ' + total + ' (' + (d.payment === 'half' ? '50%' : 'full') + ')\nPlease verify payment.');
     return { ok: true, id: id, total: total, due: due };
   } finally { lock.releaseLock(); }
 }
 
 function update_(id, status) {
-  if (!['Confirmed', 'Rejected', 'Pending'].includes(status)) throw new Error('Invalid status');
+  if (!['Confirmed', 'Rejected', 'Pending', 'Cancelled'].includes(status)) throw new Error('Invalid status');
   const sh = sheet_(), rows = sh.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === id) {
+      if (HOLD.includes(status) && !HOLD.includes(rows[i][12])) {
+        const taken = booked_(String(rows[i][2]));
+        if (String(rows[i][3]).split(',').some(h => taken.includes(Number(h)))) throw new Error('Those slots were taken by another booking');
+      }
       sh.getRange(i + 1, 13, 1, 2).setValues([[status, Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')]]);
       if (status === 'Confirmed' && rows[i][6]) {
         try {
@@ -83,6 +90,35 @@ function update_(id, status) {
   }
   throw new Error('Booking not found');
 }
+
+function cancel_(d) {
+  const sh = sheet_(), rows = sh.getDataRange().getValues();
+  const digits = x => String(x).replace(/\D/g, '').slice(-10);
+  const tz = Session.getScriptTimeZone();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).toUpperCase() === String(d.id || '').trim().toUpperCase() && digits(rows[i][5]) === digits(d.phone) && digits(d.phone).length >= 7) {
+      if (!['Pending', 'Confirmed'].includes(rows[i][12])) throw new Error('This booking can no longer be cancelled online.');
+      if (String(rows[i][2]) < Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')) throw new Error('This booking date has passed.');
+      sh.getRange(i + 1, 13, 1, 3).setValues([['Cancel Requested', Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'), rows[i][12]]]);
+      notify_('CANCEL REQUEST ' + rows[i][0] + '\n' + rows[i][2] + ' ' + String(rows[i][3]).split(',').map(label_).join(', ') + '\n' + rows[i][4] + ' ' + rows[i][5] + '\nWas: ' + rows[i][12]);
+      return { ok: true };
+    }
+  }
+  throw new Error('No booking matches that reference and phone number.');
+}
+
+function notify_(msg) {
+  try {
+    const p = PropertiesService.getScriptProperties();
+    const key = p.getProperty('TEXTBEE_API_KEY'), dev = p.getProperty('TEXTBEE_DEVICE_ID'), to = p.getProperty('ADMIN_PHONE');
+    if (!key || !dev || !to) return;
+    UrlFetchApp.fetch('https://api.textbee.dev/api/v1/gateway/devices/' + dev + '/send-sms', {
+      method: 'post', contentType: 'application/json', headers: { 'x-api-key': key },
+      payload: JSON.stringify({ recipients: to.split(',').map(x => x.trim()), message: msg }), muteHttpExceptions: true
+    });
+  } catch (e) {}
+}
+function testSms() { notify_('Test SMS from your court booking app.'); }
 
 function list_() {
   return sheet_().getDataRange().getValues().slice(1).reverse().map(r => Object.fromEntries(HEAD.map((h, i) => [h, String(r[i])])));
@@ -112,6 +148,8 @@ function sheet_() {
     sh.appendRow(HEAD);
     sh.getRange(1, 1, 1, HEAD.length).setFontWeight('bold');
     sh.setFrozenRows(1);
+  } else if (sh.getRange(1, HEAD.length).getValue() !== HEAD[HEAD.length - 1]) {
+    sh.getRange(1, HEAD.length).setValue(HEAD[HEAD.length - 1]).setFontWeight('bold');
   }
   return sh;
 }
