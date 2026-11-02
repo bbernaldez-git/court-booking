@@ -29,6 +29,8 @@ const STATUS=['Pending','Cancel Requested','Confirmed','Rejected','Cancelled'];
 let pw=sessionStorage.getItem('pw')||'',all=[],tab='Pending',view='cal',cfg,month=new Date(),selDay=null;
 month.setDate(1);
 const lbl=h=>(h%12||12)+':00 '+(h<12?'AM':'PM');
+const slotLabel=h=>{const x=h%12||12,y=(h+1)%12||12,pa=h<12?'AM':'PM',pb=h+1<12?'AM':'PM';return pa===pb?x+' – '+y+' '+pa:x+' '+pa+' – '+y+' '+pb};
+const rngTxt=str=>{const hs=str.split(',').map(Number).sort((p,q)=>p-q),o=[];let st=hs[0],p=st;for(let i=1;i<=hs.length;i++){if(hs[i]!==p+1){o.push(lbl(st)+' – '+lbl(p+1));st=hs[i]}p=hs[i]}return o.join(', ')+' ('+hs.length+' hr'+(hs.length>1?'s':'')+')'};
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const post=b=>fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({password:pw,...b})}).then(r=>r.json());
@@ -68,7 +70,7 @@ function drawCal(){
   dv.innerHTML='<h2>'+new Date(selDay+'T00:00').toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'})+'</h2>';
   for(let h=cfg.open;h<cfg.close;h++){
     const x=hs[h],r=document.createElement(x?'button':'div');r.className='hr'+(x?' b '+x.Status.replace(' ',''):'');
-    r.innerHTML='<span>'+lbl(h)+'</span>'+(x?'<span><b>'+esc(x.Name)+'</b> · '+esc(x.Phone)+'</span><span class="tag '+x.Status.replace(' ','')+'">'+x.Status+'</span>':'<span class="hint">Open</span>');
+    r.innerHTML='<span>'+slotLabel(h)+'</span>'+(x?'<span><b>'+esc(x.Name)+'</b> · '+esc(x.Phone)+'</span><span class="tag '+x.Status.replace(' ','')+'">'+x.Status+'</span>':'<span class="hint">Open</span>');
     if(x)r.onclick=()=>{view='list';tab=x.Status;draw()};
     dv.append(r)}
 }
@@ -91,7 +93,7 @@ function drawList(){
   $('list').innerHTML=rows.length?'':'<p class="hint">Nothing here.</p>';
   rows.forEach(x=>{
     const d=document.createElement('div');d.className='bk';
-    const hrs=x.Hours.split(',').map(h=>lbl(+h)).join(', ');
+    const hrs=rngTxt(x.Hours);
     d.innerHTML=`<div class="row"><b>${esc(x.Name)} · ${esc(x['Booking ID'])}</b><span class="tag ${x.Status.replace(' ','')}">${x.Status}</span></div>
       <div><b>${x.Date}</b> — ${hrs}</div>
       <div>${esc(x.Phone)} ${x.Email?'· '+esc(x.Email):''}</div>

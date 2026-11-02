@@ -16,7 +16,7 @@
 <button class="ph" data-src="images/court-2.jpg" aria-label="View photo 2 larger"><img src="images/court-2.jpg" alt="Court view showing the Ebenezer backboard and painted key" loading="lazy" width="1280" height="960"></button>
 </div><p class="hint">Covered court with night lighting. Tap a photo to enlarge.</p></section>
 <section><h2>1. Pick a day</h2><div class="days" id="days"></div></section>
-<section><h2>2. Pick your hours</h2><div class="slots" id="slots">Loading…</div><p class="hint" id="rate"></p></section>
+<section><h2>2. Pick your hours</h2><p class="hint" style="margin:0 0 10px">Each button is a <b>1-hour block</b>. For a longer game, tap blocks that follow each other: 3–4 PM + 4–5 PM = <b>3 to 5 PM (2 hours)</b>.</p><div class="slots" id="slots">Loading…</div><div class="picked" id="picked" aria-live="polite"></div><p class="hint" id="rate"></p></section>
 <section><h2>3. Your details</h2>
 <label for="name">Full name</label><input id="name" type="text" autocomplete="name">
 <label for="phone">Mobile number</label><input id="phone" type="tel" inputmode="tel" autocomplete="tel">
@@ -33,7 +33,7 @@
 <button class="btn" id="submit">Submit booking</button></section>
 </div>
 <dialog id="lb"><button class="x" aria-label="Close">×</button><img id="lbimg" alt="Enlarged court photo"></dialog>
-<section class="done" id="done" hidden><h2>Booking received</h2><p>Your reference is <b id="ref"></b>. Your slot is held while we check your payment. You'll be marked <b>Confirmed</b> once the admin verifies it.</p><p class="hint">Screenshot this reference.</p><button class="btn sm" onclick="location.reload()">Book another</button></section>
+<section class="done" id="done" hidden><h2>Booking received</h2><p id="donesum" style="font-size:1.2rem;font-weight:700;margin:0 0 6px"></p><p>Your reference is <b id="ref"></b>. Your slot is held while we check your payment. You'll be marked <b>Confirmed</b> once the admin verifies it.</p><p class="hint">Screenshot this reference.</p><button class="btn sm" onclick="location.reload()">Book another</button></section>
 <section id="cancel"><h2>Need to cancel?</h2><p class="hint">Enter your booking reference and the phone number you booked with. The admin will review your request.</p>
 <p class="hint" id="refundtxt"></p>
 <label for="cid">Booking reference</label><input id="cid" type="text" placeholder="BK261105-AB12" autocapitalize="characters">
@@ -48,6 +48,9 @@ const $=id=>document.getElementById(id);
 let cfg, date, sel=new Set(), booked=[], proofData=null;
 const peso=n=>'₱'+n.toLocaleString();
 const lbl=h=>(h%12||12)+':00 '+(h<12?'AM':'PM');
+const slotLabel=h=>{const a=h%12||12,b=(h+1)%12||12,pa=h<12?'AM':'PM',pb=h+1<12?'AM':'PM';return pa===pb?a+' – '+b+' '+pa:a+' '+pa+' – '+b+' '+pb};
+const rng=s=>{const hs=[...s].sort((a,b)=>a-b),o=[];let st=hs[0],p=st;for(let i=1;i<=hs.length;i++){if(hs[i]!==p+1){o.push([st,p+1]);st=hs[i]}p=hs[i]}return o};
+const hrsTxt=n=>n+' hour'+(n>1?'s':'');
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const api=(q)=>fetch(API_URL+'?'+new URLSearchParams(q)).then(r=>r.json());
 function fail(m){const e=$('err');e.textContent=m;e.hidden=!m;if(m)e.scrollIntoView({behavior:'smooth',block:'center'})}
@@ -76,7 +79,7 @@ function drawSlots(){
   for(let h=cfg.open;h<cfg.close;h++){
     const b=document.createElement('button'),taken=booked.includes(h),past=today&&h<=now.getHours();
     b.className='slot'+(taken?' taken':'')+(sel.has(h)?' sel':'');
-    b.textContent=lbl(h)+(taken?' (booked)':'');b.disabled=taken||past;
+    b.textContent=slotLabel(h)+(taken?' (booked)':'');b.setAttribute('aria-label',slotLabel(h)+(taken?', booked':sel.has(h)?', selected':''));b.disabled=taken||past;
     b.onclick=()=>{sel.has(h)?sel.delete(h):sel.add(h);drawSlots();money()};
     box.append(b)}
   money();
@@ -84,6 +87,7 @@ function drawSlots(){
 function money(){
   const t=sel.size*cfg.rate,half=t/2,full=document.querySelector('[name=pay]:checked').value==='full';
   $('p-half').textContent=peso(half);$('p-full').textContent=peso(t);
+  $('picked').innerHTML=sel.size?rng(sel).map(([a,b])=>'<div class="pr"><b>'+lbl(a)+' – '+lbl(b)+'</b><span>'+hrsTxt(b-a)+'</span></div>').join('')+'<div class="pt">'+hrsTxt(sel.size)+' × '+peso(cfg.rate)+' = <b>'+peso(t)+'</b></div>':'<span class="hint">No time picked yet.</span>';
   $('due').textContent=peso(full?t:half);$('bal').textContent=peso(full?0:half);
 }
 document.querySelectorAll('[name=pay]').forEach(r=>r.onchange=money);
@@ -118,7 +122,7 @@ $('submit').onclick=async()=>{
       action:'book',date,hours:[...sel],name:$('name').value,phone:$('phone').value,email:$('email').value,
       payment:document.querySelector('[name=pay]:checked').value,proof:proofData,proofType:'image/jpeg'})}).then(r=>r.json());
     if(!r.ok)throw new Error(r.error);
-    $('app').hidden=true;$('done').hidden=false;$('ref').textContent=r.id;scrollTo(0,0);
+    $('app').hidden=true;$('done').hidden=false;$('ref').textContent=r.id;$('donesum').textContent=new Date(date+'T00:00').toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'})+': '+rng(sel).map(([a,b])=>lbl(a)+' – '+lbl(b)).join(', ')+' ('+hrsTxt(sel.size)+')';scrollTo(0,0);
   }catch(e){fail(e.message);b.disabled=false;b.textContent='Submit booking';if(/booked/.test(e.message))pickDay(date)}
 };
 $('cbtn').onclick=async()=>{const m=$('cmsg'),b=$('cbtn');m.hidden=true;b.disabled=true;

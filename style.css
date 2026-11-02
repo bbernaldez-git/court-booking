@@ -16,7 +16,7 @@ section h2{font-size:1.6rem;margin-bottom:12px}
 .days{display:flex;max-width:100%;gap:8px;overflow-x:auto;padding-bottom:6px}
 .day,.slot{font:inherit;color:inherit;background:var(--mist);border:2px solid transparent;border-radius:10px;cursor:pointer}
 .day{flex:0 0 62px;padding:8px 0;text-align:center}.day b{display:block;font:700 1.5rem 'Barlow Condensed'}.day small{color:var(--mute)}
-.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
 .slot{padding:10px 6px;font-weight:600}
 .slot.sel,.day.sel{background:var(--court);color:#fff;border-color:var(--court)}.day.sel small{color:#dbe7f7}
 .slot:disabled{cursor:not-allowed;opacity:.45;text-decoration:line-through}
@@ -93,9 +93,14 @@ dialog .x{position:absolute;top:-44px;right:0;width:44px;height:44px;border:0;bo
 .dot.c{background:var(--ok)}.dot.p{background:var(--hoop)}.dot.x{background:var(--bad)}
 #dayview{margin-top:14px}#dayview h2{margin-bottom:8px}
 .hr{display:flex;gap:10px;align-items:center;width:100%;padding:10px;margin-bottom:4px;border-radius:8px;background:var(--mist);font:inherit;color:inherit;border:0;text-align:left;min-height:46px;flex-wrap:wrap}
-.hr>span:first-child{flex:0 0 80px;font-weight:600}.hr .tag{margin-left:auto}
+.hr>span:first-child{flex:0 0 125px;font-weight:600}.hr .tag{margin-left:auto}
 .hr.b{cursor:pointer;border-left:6px solid var(--ok)}.hr.Pending{border-color:var(--hoop)}.hr.CancelRequested{border-color:var(--bad)}
 .tag.CancelRequested{background:var(--bad);color:#fff}.tag.Cancelled{background:var(--mute);color:#fff}
 @media(max-width:520px){.cell{min-height:56px}.cell small{font-size:.58rem}}
 
 .refund{margin-top:6px;padding:6px 10px;border-left:5px solid var(--hoop);background:var(--mist);border-radius:6px}
+
+.picked{margin-top:12px;border-left:5px solid var(--hoop);background:var(--mist);border-radius:8px;padding:10px 12px}
+.picked .pr{display:flex;justify-content:space-between;gap:8px;font:700 1.35rem 'Barlow Condensed',sans-serif}
+.picked .pr span{font:600 1rem 'Barlow',sans-serif;color:var(--mute);align-self:center}
+.picked .pt{margin-top:4px;padding-top:6px;border-top:1px solid var(--rule)}
