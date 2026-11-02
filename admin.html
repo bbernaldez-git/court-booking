@@ -11,6 +11,7 @@
 <div class="msg err" id="err" hidden role="alert"></div><button class="btn" id="go">Sign in</button></section>
 <section id="panel" hidden>
 <div class="tabs" id="views"></div>
+<p class="hint"><button class="btn sm" id="tsms" style="background:var(--court);color:#fff">Send test SMS</button> <span id="tres"></span></p>
 <div id="cal"><div class="calnav"><button class="day" id="prev" aria-label="Previous month">‹</button><h2 id="mt"></h2><button class="day" id="next" aria-label="Next month">›</button></div>
 <div class="grid dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
 <div class="grid" id="grid"></div>
@@ -113,6 +114,8 @@ function drawList(){
         b.disabled=true;const r=await post({action:'refunded',id:x['Booking ID'],ref});r.ok?load():(alert(r.error),b.disabled=false)};d.querySelector('.acts').append(b)}
     $('list').append(d)});
 }
+$('tsms').onclick=async()=>{const b=$('tsms');b.disabled=true;$('tres').textContent='Sending…';
+  try{const r=await post({action:'testsms'});$('tres').textContent=r.ok?'Server '+r.version+' → '+r.result:'Error: '+r.error}catch(e){$('tres').textContent='Could not reach server: '+e.message}b.disabled=false};
 $('go').onclick=()=>{pw=$('pw').value;sessionStorage.setItem('pw',pw);load()};
 if(pw)load();
 </script></body></html>
