@@ -25,7 +25,7 @@
 <label class="opt"><input type="radio" name="pay" value="half" checked> 50% downpayment <span id="p-half">₱0</span></label>
 <label class="opt"><input type="radio" name="pay" value="full"> Full payment <span id="p-full">₱0</span></label>
 <div class="pay" id="payinfo"></div>
-<label for="proof">Screenshot of your payment</label><input id="proof" type="file" accept="image/*">
+<label for="proof">Screenshot of your payment</label><input id="proof" type="file" accept="image/jpeg,image/png,image/webp"><div class="msg err" id="perr" hidden role="alert"></div>
 <img id="preview" class="preview" alt="Payment screenshot preview" hidden>
 <div class="sum big"><span>Send now</span><span id="due">₱0</span></div>
 <div class="sum hint"><span>Balance due at the court</span><span id="bal">₱0</span></div>
@@ -35,8 +35,10 @@
 <dialog id="lb"><button class="x" aria-label="Close">×</button><img id="lbimg" alt="Enlarged court photo"></dialog>
 <section class="done" id="done" hidden><h2>Booking received</h2><p>Your reference is <b id="ref"></b>. Your slot is held while we check your payment. You'll be marked <b>Confirmed</b> once the admin verifies it.</p><p class="hint">Screenshot this reference.</p><button class="btn sm" onclick="location.reload()">Book another</button></section>
 <section id="cancel"><h2>Need to cancel?</h2><p class="hint">Enter your booking reference and the phone number you booked with. The admin will review your request.</p>
+<p class="hint" id="refundtxt"></p>
 <label for="cid">Booking reference</label><input id="cid" type="text" placeholder="BK261105-AB12" autocapitalize="characters">
 <label for="cph">Mobile number</label><input id="cph" type="tel" inputmode="tel">
+<label for="crf">Send refund to (GCash/Maya number, if different)</label><input id="crf" type="tel" inputmode="tel">
 <div class="msg err" id="cmsg" hidden role="alert"></div>
 <button class="btn" id="cbtn">Request cancellation</button></section>
 </main>
@@ -52,7 +54,7 @@ function fail(m){const e=$('err');e.textContent=m;e.hidden=!m;if(m)e.scrollIntoV
 
 async function init(){
   cfg=(await api({action:'config'})).config;
-  $('court').textContent=cfg.court;$('payinfo').textContent=cfg.pay;
+  $('court').textContent=cfg.court;$('refundtxt').textContent=cfg.refund;$('payinfo').textContent=cfg.pay;
   $('rate').textContent=peso(cfg.rate)+' per hour. Pending bookings also hold their slot.';
   const box=$('days');
   for(let i=0;i<cfg.days;i++){const d=new Date();d.setDate(d.getDate()+i);
@@ -86,14 +88,23 @@ function money(){
 }
 document.querySelectorAll('[name=pay]').forEach(r=>r.onchange=money);
 
-$('proof').onchange=e=>{
+const perr=m=>{const e=$('perr');e.textContent=m;e.hidden=!m};
+const isImg=b=>(b[0]===0xFF&&b[1]===0xD8)||(b[0]===0x89&&b[1]===0x50&&b[2]===0x4E&&b[3]===0x47)||(b[0]===0x52&&b[1]===0x49&&b[2]===0x46&&b[3]===0x46&&b[8]===0x57&&b[9]===0x45&&b[10]===0x42&&b[11]===0x50);
+$('proof').onchange=async e=>{
+  proofData=null;$('preview').hidden=true;perr('');
   const f=e.target.files[0];if(!f)return;
+  const bad=m=>{perr(m);e.target.value=''};
+  if(f.size>10*1048576)return bad('That file is '+(f.size/1048576).toFixed(1)+' MB. The maximum is 10 MB.');
+  if(f.size<5*1024)return bad('That file is too small to be a real screenshot.');
+  const head=new Uint8Array(await f.slice(0,12).arrayBuffer());
+  if(head[4]===0x66&&head[5]===0x74&&head[6]===0x79&&head[7]===0x70)return bad('HEIC photos are not supported. Please upload a PNG or JPG screenshot.');
+  if(!isImg(head))return bad('Only JPG, PNG or WebP images are allowed.');
   const img=new Image();img.onload=()=>{
     const s=Math.min(1,1400/Math.max(img.width,img.height)),c=document.createElement('canvas');
     c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-    const url=c.toDataURL('image/jpeg',.82);proofData=url.split(',')[1];
-    $('preview').src=url;$('preview').hidden=false};
-  img.onerror=()=>fail('That file is not a readable image.');
+    let q=.82,url;do{url=c.toDataURL('image/jpeg',q);q-=.1}while(url.length>1.9e6&&q>.3);
+    URL.revokeObjectURL(img.src);proofData=url.split(',')[1];$('preview').src=url;$('preview').hidden=false};
+  img.onerror=()=>bad('That image could not be opened. Try another screenshot.');
   img.src=URL.createObjectURL(f);
 };
 $('submit').onclick=async()=>{
@@ -111,8 +122,8 @@ $('submit').onclick=async()=>{
   }catch(e){fail(e.message);b.disabled=false;b.textContent='Submit booking';if(/booked/.test(e.message))pickDay(date)}
 };
 $('cbtn').onclick=async()=>{const m=$('cmsg'),b=$('cbtn');m.hidden=true;b.disabled=true;
-  try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'cancel',id:$('cid').value,phone:$('cph').value})}).then(r=>r.json());
-    if(!r.ok)throw new Error(r.error);m.className='msg';m.style.background='#e3f4ea';m.style.color='#14532d';m.textContent='Cancellation requested. The admin will confirm shortly. Your slot stays held until then.'}
+  try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'cancel',id:$('cid').value,phone:$('cph').value,refundTo:$('crf').value})}).then(r=>r.json());
+    if(!r.ok)throw new Error(r.error);m.className='msg';m.style.background='#e3f4ea';m.style.color='#14532d';m.textContent='Cancellation requested. Estimated refund: ₱'+r.refund+' ('+r.pct+'%), subject to admin approval. Your slot stays held until then.'}
   catch(e){m.className='msg err';m.style.background='';m.style.color='';m.textContent=e.message}
   m.hidden=false;b.disabled=false};
 document.querySelectorAll('.ph').forEach(b=>b.onclick=()=>{$('lbimg').src=b.dataset.src;$('lb').showModal()});
